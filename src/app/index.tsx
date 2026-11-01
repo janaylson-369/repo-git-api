@@ -1,98 +1,138 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useState, useCallback } from 'react';
+import { View, FlatList, StyleSheet, ListRenderItem } from 'react-native';
+import { Appbar, Card, Text, Avatar, Divider } from 'react-native-paper';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter, useFocusEffect } from 'expo-router';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+export interface RepositorioGithub {
+  id: number;
+  nome: string;
+  linguagens: string | null;
+  estrelas: number;
+  owner: {
+    nomeUsuario: string;
+    id: number;
+    tipoDeConta: string;
+    avatar_url: string;
+  };
+}
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+const CHAVE_ARMAZENAMENTO = '@github_repos';
+
+export default function TelaInicial() {
+  const [repositorios, setRepositorios] = useState<RepositorioGithub[]>([]);
+  const roteador = useRouter();
+
+  useFocusEffect(
+    useCallback(() => {
+      carregarRepositorios();
+    }, [])
+  );
+
+  const carregarRepositorios = async (): Promise<void> => {
+    try {
+      const dadosSalvos = await AsyncStorage.getItem(CHAVE_ARMAZENAMENTO);
+      if (dadosSalvos) {
+        setRepositorios(JSON.parse(dadosSalvos) as RepositorioGithub[]);
+      } else {
+        setRepositorios([]);
+      }
+    } catch (erro) {
+      console.error('ops! ocorreu um erro' + erro);
+    }
+  };
+
+  const limparRepositorios = async (): Promise<void> => {
+    try {
+      await AsyncStorage.removeItem(CHAVE_ARMAZENAMENTO);
+      setRepositorios([]);
+    } catch (erro) {
+      console.error('ops! ocorreu um erro ' + erro);
+    }
+  };
+
+  const renderizarItem: ListRenderItem<RepositorioGithub> = ({ item }) => (
+    <Card style={estilos.cartao} mode="elevated">
+      <Card.Title
+        title={item.nome}
+        subtitle={`Dono: ${item.owner?.nomeUsuario ?? 'Desconhecido'}`}
+        left={(propriedades) => (
+          <Avatar.Image
+            {...propriedades}
+            source={{ uri: item.owner?.avatar_url }}
+          />
+        )}
+      />
+      <Card.Content>
+        <Text variant="titleSmall" style={estilos.tituloSecao}>
+          Dados do Repositório
+        </Text>
+        <Text variant="bodyMedium"> Nome: {item.nome}</Text>
+        <Text variant="bodyMedium">
+           Linguagem: {item.linguagens ?? 'Não especificada'}
+        </Text>
+        <Text variant="bodyMedium"> Estrelas: {item.estrelas}</Text>
+
+        <Divider style={estilos.divisor} />
+
+        <Text variant="titleSmall" style={estilos.tituloSecao}>
+          Dados do Dono
+        </Text>
+        <Text variant="bodyMedium"> Nome: {item.owner?.nomeUsuario}</Text>
+        <Text variant="bodyMedium">ID do Usuário: {item.owner?.id}</Text>
+        <Text variant="bodyMedium">Tipo de Conta: {item.owner?.tipoDeConta}</Text>
+      </Card.Content>
+    </Card>
+  );
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
+    <View style={estilos.container}>
+      <Appbar.Header elevated>
+        <Appbar.Content title="Meus Repositórios" />
+        <Appbar.Action icon="minus" onPress={limparRepositorios} />
+        <Appbar.Action
+          icon="plus"
+          onPress={() => roteador.push('/adicionar')}
+        />
+      </Appbar.Header>
+
+      <FlatList
+        data={repositorios}
+        keyExtractor={(item) => String(item.id)}
+        renderItem={renderizarItem}
+        contentContainerStyle={estilos.conteudoLista}
+        ListEmptyComponent={
+          <Text variant="bodyLarge" style={estilos.textoVazio}>
+            Nenhum repositório salvo. Clique no "+" para adicionar.
+          </Text>
+        }
+      />
+    </View>
   );
 }
 
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
-  );
-}
-
-const styles = StyleSheet.create({
+const estilos = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
+    backgroundColor: '#f5f5f5',
   },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+  conteudoLista: {
+    padding: 16,
   },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+  cartao: {
+    marginBottom: 16,
   },
-  title: {
+  tituloSecao: {
+    fontWeight: 'bold',
+    marginBottom: 4,
+    marginTop: 4,
+  },
+  divisor: {
+    marginVertical: 10,
+  },
+  textoVazio: {
     textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+    marginTop: 48,
+    color: '#666',
   },
 });
